@@ -1,0 +1,22 @@
+{
+    "label": "Test text",
+    "fieldlist": ["A", "B", "C", "D", "E", "F", "G", "H"],
+    "fieldlabel": "Witness",
+    "grouplabel": "Variation",
+    "cardlabel": "Reading",
+    "groups": [
+        {
+            "id": "1",
+            "cards": [
+                {
+                    "text": "Reading one",
+                    "fields": ["A", "B"]
+                },
+                {
+                    "text": "Reading two",
+                    "fields": ["C"]
+                }
+            ]
+        }
+    ]
+}
