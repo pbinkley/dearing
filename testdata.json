@@ -17,6 +17,19 @@
                     "fields": ["C"]
                 }
             ]
+        },
+        {
+            "id": "2",
+            "cards": [
+                {
+                    "text": "Reading three",
+                    "fields": ["D","F"]
+                },
+                {
+                    "text": "Reading four",
+                    "fields": ["E"]
+                }
+            ]
         }
     ]
 }

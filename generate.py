@@ -1,5 +1,6 @@
 from fpdf import FPDF
 import json
+import pdb
 
 stockformats = {
     'card': {
@@ -18,11 +19,9 @@ stockformats = {
 data = json.load(open('testdata.json'))
 format = 'avery'
 stockformat = stockformats[format]
-
-location = stockformat['locations'][2]
+segment_end = len(stockformat['locations'])
 
 pdf = FPDF(orientation = 'L', unit = 'in', format = stockformats[format]['format'])
-pdf.add_page()
 pdf.set_font('Courier', 'B', 12)
 pdf.set_text_color(0, 0, 0)
 pdf.set_margin(0)
@@ -41,13 +40,32 @@ h = 0.125
 count = len(fields)
 
 space = 5 / (count + 1)
-newpage = True
+
+cards = []
 
 for group in data["groups"]:
+    thisgroup = { "group": group["id"] }
     for card in group["cards"]:
-        if not newpage:
-            pdf.add_page()
-        newpage = False
+        thisgroup["card"] = card
+        cards.append(thisgroup.copy())
+
+print(segment_end)
+print(len(cards))
+
+while len(cards) > 0:
+    print("New segment: " + cards[0]["card"]["text"])
+    pdf.add_page()
+
+    segment = cards[:segment_end]
+    print(len(segment))
+    del(cards[:segment_end])
+    print("  " + str(len(cards)))
+
+    index = 0
+    for item in segment:
+        print("New card: " + item["card"]["text"])
+        location = stockformat['locations'][index]
+        index += 1
 
         xoffset = location[1]
         yoffset = location[0]
@@ -60,7 +78,7 @@ for group in data["groups"]:
             pdf.set_fill_color(255)
 
             # draw notch if this field is in this card.fields
-            if field in card['fields']:
+            if field in item['card']['fields']:
                 pdf.line(x1=x-(hole_width/2), y1=yoffset, x2=x, y2=0.25+hole_width/2 + yoffset)
                 pdf.line(x1=x+(hole_width/2), y1=yoffset, x2=x, y2=0.25+hole_width/2+yoffset)
 
@@ -77,9 +95,9 @@ for group in data["groups"]:
         pdf.set_xy(0,0)
 
         pdf.set_xy(xoffset + 1, yoffset +1)
-        pdf.cell(3, 0.5, data["grouplabel"] +": " + group["id"])
+        pdf.cell(3, 0.5, data["grouplabel"] +": " + item["group"])
         pdf.set_xy(xoffset + 1,yoffset + 1.25)
-        pdf.cell(3, 0.5, data["cardlabel"] + ": " + card["text"])
+        pdf.cell(3, 0.5, data["cardlabel"] + ": " + item["card"]["text"])
 
         pdf.set_xy(xoffset + 0.25,yoffset + 2.5)
         pdf.cell(3, 0.25, "Source: " + data["label"])
