@@ -2,7 +2,7 @@ from fpdf import FPDF
 import json
 import pdb
 
-stockformats = {
+stock_formats = {
     'card': {
         'format': (3,5),
         'locations': [(0,0)]
@@ -14,32 +14,24 @@ stockformats = {
     }
 }
 
-# the output format is assumed to be a 3x5 card for now
+format = 'avery'
+
+stock_format = stock_formats[format]
+segment_end = len(stock_format['locations']) # the number of locations, i.e. how many cards per page
+
+card_height = 3
+card_width = 5
+
+hole_width = 0.125 
+hole_height = 0.25 # height of cell for circle
+hole_y = 0.1875 # offset from top of card
+label_height = 0.125
 
 data = json.load(open('testdata.json'))
-format = 'avery'
-stockformat = stockformats[format]
-segment_end = len(stockformat['locations'])
+fields = data["fieldlist"] # list of fields, i.e. witnesses
+spacing = card_width / (len(fields) + 1) # spacing between holes
 
-pdf = FPDF(orientation = 'L', unit = 'in', format = stockformats[format]['format'])
-pdf.set_font('Courier', 'B', 12)
-pdf.set_text_color(0, 0, 0)
-pdf.set_margin(0)
-
-txt = 'O'
-border = 0
-align = 2
-fill = False
-
-fields = data["fieldlist"]
-
-hole_height = 0.25
-hole_width = 0.125
-h = 0.125
-
-count = len(fields)
-
-space = 5 / (count + 1)
+# collect cards into single sequence
 
 cards = []
 
@@ -49,62 +41,68 @@ for group in data["groups"]:
         thisgroup["card"] = card
         cards.append(thisgroup.copy())
 
-print(segment_end)
-print(len(cards))
+print("Cards: " + str(len(cards)))
+
+# start PDF
+
+pdf = FPDF(orientation = 'L', unit = 'in', format = stock_format['format'])
+pdf.set_font('Courier', 'B', 12)
+pdf.set_text_color(0, 0, 0)
+pdf.set_margin(0)
+pdf.set_draw_color(r=0, g=0, b=0)
+pdf.set_fill_color(255)
 
 while len(cards) > 0:
-    print("New segment: " + cards[0]["card"]["text"])
-    pdf.add_page()
 
+    # capture and delete the cards for this page
     segment = cards[:segment_end]
-    print(len(segment))
     del(cards[:segment_end])
-    print("  " + str(len(cards)))
 
-    index = 0
-    for item in segment:
-        print("New card: " + item["card"]["text"])
-        location = stockformat['locations'][index]
-        index += 1
+    pdf.add_page() # start new page
 
-        xoffset = location[1]
-        yoffset = location[0]
+    card_index = 0
+    for item in segment: # card
+        location = stock_format['locations'][card_index] # location of this card on page
+        card_x = location[1]
+        card_y = location[0]
 
-        # one card for each card
-        pos = 1
+        card_index += 1
+
+        # draw fields (i.e. witnesses) at top of card: holes, notches, labels
+        field_index = 1
         for field in fields:
-            x = xoffset + pos * space - hole_width/2
-            pdf.set_draw_color(r=0, g=0, b=0)
-            pdf.set_fill_color(255)
+            x = card_x + field_index * spacing - hole_width/2
 
             # draw notch if this field is in this card.fields
             if field in item['card']['fields']:
-                pdf.line(x1=x-(hole_width/2), y1=yoffset, x2=x, y2=0.25+hole_width/2 + yoffset)
-                pdf.line(x1=x+(hole_width/2), y1=yoffset, x2=x, y2=0.25+hole_width/2+yoffset)
+                pdf.line(x1=x - hole_width/2, y1=card_y, x2=x, y2=0.25 + hole_width/2 + card_y)
+                pdf.line(x1=x + hole_width/2, y1=card_y, x2=x, y2=0.25 + hole_width/2 + card_y)
 
             # draw circle for hole
-            pdf.ellipse(x=x - hole_width/2, y=yoffset+0.1875, w=hole_width, h=hole_width, style="FD")
+            pdf.ellipse(x=x - hole_width/2, y=card_y+hole_y, w=hole_width, h=hole_width, style="FD")
 
             # add field label below circle
-            pdf.set_xy(x - hole_width/2, 2*hole_height - 0.125 + yoffset)
-            pdf.cell(hole_width, h, fields[pos-1], border, align='C')
+            pdf.set_xy(x - hole_width/2, 2*hole_height - 0.125 + card_y)
+            pdf.cell(hole_width, label_height, fields[field_index-1], align='C')
 
-            pos += 1
+            field_index += 1
 
-        # reset position
-        pdf.set_xy(0,0)
+        # TODO: make sure long texts are wrapped properly
+        # add group id (i.e. id of this variation)
+        pdf.set_xy(card_x + 1, card_y + 1)
+        pdf.cell(card_height, 0.5, data["grouplabel"] +": " + item["group"])
 
-        pdf.set_xy(xoffset + 1, yoffset +1)
-        pdf.cell(3, 0.5, data["grouplabel"] +": " + item["group"])
-        pdf.set_xy(xoffset + 1,yoffset + 1.25)
-        pdf.cell(3, 0.5, data["cardlabel"] + ": " + item["card"]["text"])
+        # add content (i.e. text of this reading)
+        pdf.set_xy(card_x + 1,card_y + 1.25)
+        pdf.cell(card_height, 0.5, data["cardlabel"] + ": " + item["card"]["text"])
 
-        pdf.set_xy(xoffset + 0.25,yoffset + 2.5)
-        pdf.cell(3, 0.25, "Source: " + data["label"])
+        # add source (i.e. pack to which this card belongs)
+        pdf.set_xy(card_x + 0.25,card_y + 2.5)
+        pdf.cell(card_height, 0.25, "Source: " + data["label"])
 
-        # draw card outline
+        # draw card outline, to help with alignment with the form
         # TODO: make optional
-        pdf.rect(x=xoffset, y=yoffset, w=5, h=3, style='D')
+        pdf.rect(x=card_x, y=card_y, w=card_width, h=card_height, style='D')
 
         # TODO: add corner cut at lower right
 
